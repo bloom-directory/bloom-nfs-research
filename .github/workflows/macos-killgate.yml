@@ -1,0 +1,38 @@
+name: macOS kill-gate (pm#38)
+
+# Probes the macOS side of pm#38: can a built-in, zero-install, no-admin
+# `mount_nfs -o sec=krb5p` reach the Linux NFSv4.1 + krb5p server on cocoroco?
+# A negative result is valid evidence — the transcript always uploads.
+#
+# Manual prerequisites before triggering:
+#   1. WS_WS1_PASS secret set = the w/ws1 password from cocoroco's
+#      /root/ws-secrets/peer.env.
+#   2. cocoroco cloud SG open to GitHub-hosted runner IPs on tcp+udp 88 and
+#      tcp 2049 (broaden to GitHub's published ranges or 0.0.0.0/0 for the
+#      run; the export is krb5p-only with a high-entropy password — narrow
+#      again afterward).
+on:
+  workflow_dispatch:
+
+jobs:
+  killgate:
+    runs-on: macos-14
+    timeout-minutes: 15
+    env:
+      REALM: WORK.SOPHASTRA.COM
+      FQDN: work.sophastra.com
+      WS_USER: w/ws1
+      SPN: nfs/work.sophastra.com
+      WS_PATH: ws1
+      WS_PASS: ${{ secrets.WS_WS1_PASS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run kill-gate
+        run: bash ops/macos-killgate.sh
+      - name: Upload transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: killgate-transcript
+          path: ${{ runner.temp }}/killgate.txt
+          if-no-files-found: warn

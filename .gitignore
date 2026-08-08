@@ -1,0 +1,11 @@
+# Kerberos/NFS secrets — never commit
+*.keytab
+*.env
+# captured evidence (pulled from hosts into evidence/)
+evidence/
+*.pcap
+# agent / local config
+.claude/
+# editor / OS
+.DS_Store
+*.swp
