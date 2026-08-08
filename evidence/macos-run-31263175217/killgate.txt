@@ -1,0 +1,91 @@
+
+=== macOS kill-gate — built-in kinit/mount_nfs, no install, principal=w/ws1@WORK.SOPHASTRA.COM ===
++ sw_vers
+ProductName:		macOS
+ProductVersion:		14.8.7
+BuildVersion:		23J520
++ uname -a
+Darwin sjc22-bt149-2791cb85-8cf2-4fa4-8c1f-86c84ca63d34-8E31BEDB0158.local 23.6.0 Darwin Kernel Version 23.6.0: Tue Apr 21 20:17:41 PDT 2026; root:xnu-10063.141.1.712.16~1/RELEASE_ARM64_VMAPPLE arm64
++ bash --version
+GNU bash, version 3.2.57(1)-release (arm64-apple-darwin23)
+Copyright (C) 2007 Free Software Foundation, Inc.
++ sh -c command -v kinit kvno klist kdestroy mount_nfs 2>&1; true
+/usr/bin/kinit
+/usr/bin/klist
+/usr/bin/kdestroy
+/sbin/mount_nfs
+
+=== before-snapshot (criterion #8 — must match after) ===
++ ls -la /etc/krb5.conf
+ls: /etc/krb5.conf: No such file or directory
++ ls -la /etc/idmapd.conf
+ls: /etc/idmapd.conf: No such file or directory
++ ls -la /Users/runner/Library/LaunchAgents
+total 8
+drwxr-xr-x   3 runner  staff    96 Aug  8 14:12 .
+drwx------@ 80 runner  staff  2560 Aug  8 14:12 ..
+-rw-r--r--   1 runner  staff   946 Aug  8 14:12 hca.plist
+
+=== reachability preflight ===
++ bash -c echo > /dev/tcp/work.sophastra.com/88
+tcp/88 OK
++ bash -c echo > /dev/tcp/work.sophastra.com/2049
+tcp/2049 OK
+
+=== PHASE A — admin mount (criterion #5 interop) ===
++ kinit --password-file=/Users/runner/work/_temp/pw-admin w/ws1@WORK.SOPHASTRA.COM
++ klist
+Credentials cache: FILE:/Users/runner/work/_temp/ccache-admin
+        Principal: w/ws1@WORK.SOPHASTRA.COM
+
+  Issued                Expires               Principal
+Aug  8 14:55:56 2026  Aug  8 15:55:56 2026  krbtgt/WORK.SOPHASTRA.COM@WORK.SOPHASTRA.COM
++ /Users/runner/work/_temp/kvno-prefetch nfs/work.sophastra.com@WORK.SOPHASTRA.COM
++ klist
+Credentials cache: FILE:/Users/runner/work/_temp/ccache-admin
+        Principal: w/ws1@WORK.SOPHASTRA.COM
+
+  Issued                Expires               Principal
+Aug  8 14:55:56 2026  Aug  8 15:55:56 2026  krbtgt/WORK.SOPHASTRA.COM@WORK.SOPHASTRA.COM
+Aug  8 14:55:56 2026  Aug  8 15:55:56 2026  nfs/work.sophastra.com@WORK.SOPHASTRA.COM
++ /Users/runner/work/_temp/to 60 mount_nfs -o vers=4,sec=krb5p,principal=w/ws1@WORK.SOPHASTRA.COM,sprincipal=nfs/work.sophastra.com@WORK.SOPHASTRA.COM work.sophastra.com:/ws1 /Users/runner/work/_temp/mnt-admin
+mount_nfs: can't mount /ws1 from work.sophastra.com onto /Users/runner/work/_temp/mnt-admin: RPC prog. not avail
+
+=== PHASE A RESULT: MOUNT FAILED — interop negative (see captured error above) ===
++ kdestroy
+
+=== PHASE B — non-admin mount (criterion #4: NO administrator) ===
+
+=== create non-admin user 'wstest' (PrimaryGroupID 20 = staff, NOT 80 = admin) ===
++ id wstest
+uid=502(wstest) gid=20(staff) groups=20(staff),12(everyone),61(localaccounts),701(com.apple.sharepoint.group.1),100(_lpoperator)
++ dscl . -read /Users/wstest NFSHomeDirectory PrimaryGroupID
+NFSHomeDirectory: /Users/wstest
+PrimaryGroupID: 20
++ sudo -u wstest env KRB5CCNAME=FILE:/tmp/krb5cc_wstest KRB5_CONFIG=/Users/runner/work/_temp/krb5.conf kinit --password-file=/tmp/ws_pw_wstest w/ws1@WORK.SOPHASTRA.COM
++ sudo -u wstest env KRB5CCNAME=FILE:/tmp/krb5cc_wstest KRB5_CONFIG=/Users/runner/work/_temp/krb5.conf klist
+Credentials cache: FILE:/tmp/krb5cc_wstest
+        Principal: w/ws1@WORK.SOPHASTRA.COM
+
+  Issued                Expires               Principal
+Aug  8 14:56:02 2026  Aug  8 15:56:02 2026  krbtgt/WORK.SOPHASTRA.COM@WORK.SOPHASTRA.COM
++ sudo -u wstest env KRB5CCNAME=FILE:/tmp/krb5cc_wstest KRB5_CONFIG=/Users/runner/work/_temp/krb5.conf /Users/runner/work/_temp/kvno-prefetch nfs/work.sophastra.com@WORK.SOPHASTRA.COM
++ sudo -u wstest env KRB5CCNAME=FILE:/tmp/krb5cc_wstest KRB5_CONFIG=/Users/runner/work/_temp/krb5.conf /Users/runner/work/_temp/to 60 mount_nfs -o vers=4,sec=krb5p,principal=w/ws1@WORK.SOPHASTRA.COM,sprincipal=nfs/work.sophastra.com@WORK.SOPHASTRA.COM work.sophastra.com:/ws1 /Users/wstest/RemoteWorkspace
+mount_nfs: can't mount /ws1 from work.sophastra.com onto /Users/wstest/RemoteWorkspace: RPC prog. not avail
+
+=== PHASE B RESULT: NON-ADMIN MOUNT FAILED — criterion #4 NEGATIVE (valid evidence; see captured error above) ===
+
+=== after-snapshot (criterion #8 — must match before) ===
++ ls -la /etc/krb5.conf
+ls: /etc/krb5.conf: No such file or directory
++ ls -la /etc/idmapd.conf
+ls: /etc/idmapd.conf: No such file or directory
++ ls -la /Users/runner/Library/LaunchAgents
+total 8
+drwxr-xr-x   3 runner  staff    96 Aug  8 14:12 .
+drwx------@ 80 runner  staff  2560 Aug  8 14:12 ..
+-rw-r--r--   1 runner  staff   946 Aug  8 14:12 hca.plist
+
+=== cleanup ===
+
+=== TRANSCRIPT COMPLETE — upload killgate.txt artifact for evidence ===

@@ -1,9 +1,9 @@
 # Kerberos/NFS secrets — never commit
 *.keytab
 *.env
-# captured evidence (pulled from hosts into evidence/)
-evidence/
+# evidence: keep text transcripts (research record), ignore large pcaps
 *.pcap
+evidence/**/*.pcap
 # agent / local config
 .claude/
 # editor / OS
