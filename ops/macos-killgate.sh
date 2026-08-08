@@ -93,29 +93,43 @@ say "reachability preflight"
 cap bash -c "echo > /dev/tcp/${FQDN}/88"   && echo "tcp/88 OK"   | tee -a "$LOG" >&2 || echo "tcp/88 FAIL"   | tee -a "$LOG" >&2
 cap bash -c "echo > /dev/tcp/${FQDN}/2049" && echo "tcp/2049 OK" | tee -a "$LOG" >&2 || echo "tcp/2049 FAIL" | tee -a "$LOG" >&2
 
-# macOS mount_nfs takes the MAJOR version only (vers=4); the 4.1 minor is
-# negotiated via EXCHANGE_ID. vers=4.1 (Linux syntax) is rejected with
-# "illegal NFS version value" — seen in run 1.
-MOUNT_OPTS="vers=4,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
+# Runs 2-3: vers=4 + /ws1 fails "RPC prog. not avail" despite the server having
+# nfs v3+v4, mountd v3, nfs_acl, nlockmgr ALL registered and responding remotely.
+# So Phase A probes a (version x path) matrix to isolate what macOS's client
+# requires — diagnosis, not guessing. (vers=4.1 is invalid macOS syntax; major only.)
+V4K="vers=4,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
+V3K="vers=3,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
+WOPTS=""; WPATH=""   # first winning variant — consumed by Phase B
 
-# --- Phase A: admin mount (runner user) ---
-say "PHASE A — admin mount (criterion #5 interop)"
+# --- Phase A: admin mount matrix (criterion #5 interop) ---
+say "PHASE A — admin mount matrix (isolate macOS requirement)"
 CCACHE="FILE:$RUNNER_TEMP/ccache-admin"; export KRB5CCNAME="$CCACHE"
 PWFILE="$RUNNER_TEMP/pw-admin"; printf '%s' "$WS_PASS" > "$PWFILE"; chmod 600 "$PWFILE"
 cap kinit --password-file="$PWFILE" "${WS_USER}@${REALM}"
 cap klist
 cap "$KVSC" "${SPN}@${REALM}"
 cap klist
-MNT_A="$RUNNER_TEMP/mnt-admin"; mkdir -p "$MNT_A"
-cap "$TOSC" 60 mount_nfs -o "$MOUNT_OPTS" "${FQDN}:/${WS_PATH}" "$MNT_A"
-if mount | grep -q "$(basename "$MNT_A")"; then
-  say "PHASE A RESULT: MOUNT SUCCEEDED — macOS+krb5p interop with Linux NFSD works"
-  cap ls -la "$MNT_A"
-  cap bash -c "echo hello-from-mac-admin-\$(date +%s) > '$MNT_A/marker-admin.txt' && cat '$MNT_A/marker-admin.txt'"
-  cap "$TOSC" 30 umount "$MNT_A"
-else
-  say "PHASE A RESULT: MOUNT FAILED — interop negative (see captured error above)"
-fi
+
+# try_mount <label> <opts> <path> <mnt> — logs result; sets WOPTS/WPATH on first success
+try_mount() {
+  local label="$1" opts="$2" path="$3" mnt="$4"
+  say "TRY $label : opts={$opts} path={$path}"
+  "$TOSC" 60 mount_nfs -o "$opts" "${FQDN}:${path}" "$mnt" 2>&1 | tee -a "$LOG" >&2
+  if mount | grep -q "$(basename "$mnt")"; then
+    say "  -> $label MOUNTED (success)"
+    [ -z "$WOPTS" ] && { WOPTS="$opts"; WPATH="$path"; }
+    return 0
+  fi
+  say "  -> $label failed"
+  return 1
+}
+for v in m1 m2 m3 m4; do mkdir -p "$RUNNER_TEMP/$v"; done
+try_mount "v4+krb5p /${WS_PATH}"         "$V4K" "/${WS_PATH}"        "$RUNNER_TEMP/m1"
+try_mount "v4+krb5p /export/${WS_PATH}"  "$V4K" "/export/${WS_PATH}" "$RUNNER_TEMP/m2"
+try_mount "v3+krb5p /${WS_PATH}"         "$V3K" "/${WS_PATH}"        "$RUNNER_TEMP/m3"
+try_mount "v3+krb5p /export/${WS_PATH}"  "$V3K" "/export/${WS_PATH}" "$RUNNER_TEMP/m4"
+say "PHASE A RESULT: winner = ${WOPTS:+opts={$WOPTS} path={$WPATH}}${WOPTS:-<none of the 4 variants mounted>}"
+for v in m1 m2 m3 m4; do "$TOSC" 15 umount "$RUNNER_TEMP/$v" 2>/dev/null || true; done
 cap kdestroy 2>/dev/null || true
 rm -f "$PWFILE"
 
@@ -145,14 +159,18 @@ if id wstest >/dev/null 2>&1; then
   cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" klist
   cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" \
     "$KVSC" "${SPN}@${REALM}"
-  cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" \
-    "$TOSC" 60 mount_nfs -o "$MOUNT_OPTS" "${FQDN}:/${WS_PATH}" "$WSB_MNT"
-  if mount | grep -q "RemoteWorkspace"; then
-    say "PHASE B RESULT: NON-ADMIN MOUNT SUCCEEDED — criterion #4 PASSES"
-    cap sudo -u wstest bash -c "echo hello-from-mac-nonadmin-\$(date +%s) > '$WSB_MNT/marker-nonadmin.txt' && cat '$WSB_MNT/marker-nonadmin.txt'"
-    cap "$TOSC" 30 sudo umount "$WSB_MNT"
+  if [ -z "$WOPTS" ]; then
+    say "PHASE B SKIPPED — no admin variant mounted in Phase A (same RPC blocker); criterion #4 untestable until Phase A is resolved"
   else
-    say "PHASE B RESULT: NON-ADMIN MOUNT FAILED — criterion #4 NEGATIVE (valid evidence; see captured error above)"
+    cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" \
+      "$TOSC" 60 mount_nfs -o "$WOPTS" "${FQDN}:${WPATH}" "$WSB_MNT"
+    if mount | grep -q "RemoteWorkspace"; then
+      say "PHASE B RESULT: NON-ADMIN MOUNT SUCCEEDED — criterion #4 PASSES (variant: opts={$WOPTS} path={$WPATH})"
+      cap sudo -u wstest bash -c "echo hello-from-mac-nonadmin-\$(date +%s) > '$WSB_MNT/marker-nonadmin.txt' && cat '$WSB_MNT/marker-nonadmin.txt'"
+      cap "$TOSC" 30 sudo umount "$WSB_MNT"
+    else
+      say "PHASE B RESULT: NON-ADMIN MOUNT FAILED — admin worked, non-admin did not (criterion #4 negative; see error above)"
+    fi
   fi
   sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" kdestroy 2>/dev/null || true
   sudo rm -f "$WSB_PWFILE" "$WSB_CCACHE"
