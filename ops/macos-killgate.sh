@@ -33,8 +33,26 @@ LOG="$RUNNER_TEMP/killgate.txt"
 : > "$LOG"
 say() { printf '\n=== %s ===\n' "$*" | tee -a "$LOG" >&2; }
 cap() { printf '+ %s\n' "$*" | tee -a "$LOG" >&2; "$@" 2>&1 | tee -a "$LOG" >&2; }
-# macOS has no `timeout`; perl alarm gives us a bounded execution wrapper.
-to() { local s="$1"; shift; perl -e 'alarm shift; exec @ARGV' "$s" "$@"; }
+# macOS has no `timeout` and no `kvno`. Create executable helpers in $RUNNER_TEMP
+# so they work both in the main shell AND under `sudo -u ... env ...` (bash
+# functions are invisible there — that bit us in run 1: the non-admin mount
+# never actually executed). alarm() timers persist across exec, so the wrapper
+# kills the child after Ns.
+TOSC="$RUNNER_TEMP/to"
+cat > "$TOSC" <<'EOF'
+#!/usr/bin/env bash
+perl -e 'alarm shift; exec @ARGV' "$@"
+EOF
+chmod +x "$TOSC"
+KVSC="$RUNNER_TEMP/kvno-prefetch"
+cat > "$KVSC" <<'EOF'
+#!/usr/bin/env bash
+P="${1:?usage: kvno-prefetch <principal>}"
+if command -v kvno >/dev/null 2>&1; then kvno "$P"
+elif command -v kgetcred >/dev/null 2>&1; then kgetcred "$P"
+else echo "(no kvno/kgetcred on this OS — mount_nfs/GSS will acquire the service ticket)"; fi
+EOF
+chmod +x "$KVSC"
 
 say "macOS kill-gate — built-in kinit/mount_nfs, no install, principal=${WS_USER}@${REALM}"
 cap sw_vers
@@ -75,7 +93,10 @@ say "reachability preflight"
 cap bash -c "echo > /dev/tcp/${FQDN}/88"   && echo "tcp/88 OK"   | tee -a "$LOG" >&2 || echo "tcp/88 FAIL"   | tee -a "$LOG" >&2
 cap bash -c "echo > /dev/tcp/${FQDN}/2049" && echo "tcp/2049 OK" | tee -a "$LOG" >&2 || echo "tcp/2049 FAIL" | tee -a "$LOG" >&2
 
-MOUNT_OPTS="vers=4.1,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
+# macOS mount_nfs takes the MAJOR version only (vers=4); the 4.1 minor is
+# negotiated via EXCHANGE_ID. vers=4.1 (Linux syntax) is rejected with
+# "illegal NFS version value" — seen in run 1.
+MOUNT_OPTS="vers=4,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
 
 # --- Phase A: admin mount (runner user) ---
 say "PHASE A — admin mount (criterion #5 interop)"
@@ -83,15 +104,15 @@ CCACHE="FILE:$RUNNER_TEMP/ccache-admin"; export KRB5CCNAME="$CCACHE"
 PWFILE="$RUNNER_TEMP/pw-admin"; printf '%s' "$WS_PASS" > "$PWFILE"; chmod 600 "$PWFILE"
 cap kinit --password-file="$PWFILE" "${WS_USER}@${REALM}"
 cap klist
-cap kvno "${SPN}@${REALM}"
+cap "$KVSC" "${SPN}@${REALM}"
 cap klist
 MNT_A="$RUNNER_TEMP/mnt-admin"; mkdir -p "$MNT_A"
-cap to 60 mount_nfs -o "$MOUNT_OPTS" "${FQDN}:/${WS_PATH}" "$MNT_A"
+cap "$TOSC" 60 mount_nfs -o "$MOUNT_OPTS" "${FQDN}:/${WS_PATH}" "$MNT_A"
 if mount | grep -q "$(basename "$MNT_A")"; then
   say "PHASE A RESULT: MOUNT SUCCEEDED — macOS+krb5p interop with Linux NFSD works"
   cap ls -la "$MNT_A"
   cap bash -c "echo hello-from-mac-admin-\$(date +%s) > '$MNT_A/marker-admin.txt' && cat '$MNT_A/marker-admin.txt'"
-  cap to 30 umount "$MNT_A"
+  cap "$TOSC" 30 umount "$MNT_A"
 else
   say "PHASE A RESULT: MOUNT FAILED — interop negative (see captured error above)"
 fi
@@ -123,13 +144,13 @@ if id wstest >/dev/null 2>&1; then
     kinit --password-file="$WSB_PWFILE" "${WS_USER}@${REALM}"
   cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" klist
   cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" \
-    kvno "${SPN}@${REALM}"
+    "$KVSC" "${SPN}@${REALM}"
   cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" \
-    to 60 mount_nfs -o "$MOUNT_OPTS" "${FQDN}:/${WS_PATH}" "$WSB_MNT"
+    "$TOSC" 60 mount_nfs -o "$MOUNT_OPTS" "${FQDN}:/${WS_PATH}" "$WSB_MNT"
   if mount | grep -q "RemoteWorkspace"; then
     say "PHASE B RESULT: NON-ADMIN MOUNT SUCCEEDED — criterion #4 PASSES"
     cap sudo -u wstest bash -c "echo hello-from-mac-nonadmin-\$(date +%s) > '$WSB_MNT/marker-nonadmin.txt' && cat '$WSB_MNT/marker-nonadmin.txt'"
-    cap to 30 sudo umount "$WSB_MNT"
+    cap "$TOSC" 30 sudo umount "$WSB_MNT"
   else
     say "PHASE B RESULT: NON-ADMIN MOUNT FAILED — criterion #4 NEGATIVE (valid evidence; see captured error above)"
   fi
