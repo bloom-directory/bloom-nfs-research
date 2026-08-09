@@ -21,6 +21,7 @@ SECRETS_DIR=/root/ws-secrets
 BAKROOT="$SECRETS_DIR/backup"
 MANIFEST="$SECRETS_DIR/managed-files"
 PEER_ENV="$SECRETS_DIR/peer.env"
+UNIT_STATE="$SECRETS_DIR/rpc-unit-state"
 AES="aes256-cts-hmac-sha1-96:normal,aes128-cts-hmac-sha1-96:normal"
 
 log() { printf '\n=== %s ===\n' "$*" >&2; }
@@ -30,6 +31,18 @@ chmod 700 "$SECRETS_DIR"; chmod 755 "$EVIDENCE_DIR"
 # Initialize the manifest ONCE. Never truncate on rerun: manage() relies on it
 # persisting so it never backs up its own generated files.
 if [ ! -f "$MANIFEST" ]; then : > "$MANIFEST"; chmod 600 "$MANIFEST"; fi
+
+# nfs-common may enable rpcbind/rpc-statd as a package side effect. Preserve
+# their pre-test states so teardown can close port 111 when this experiment
+# introduced it without disabling a service that was already in use.
+if [ ! -f "$UNIT_STATE" ]; then
+  : > "$UNIT_STATE"; chmod 600 "$UNIT_STATE"
+  for unit in rpcbind.service rpcbind.socket rpc-statd.service rpc-statd-notify.service; do
+    active="$(systemctl is-active "$unit" 2>/dev/null || true)"
+    enabled="$(systemctl is-enabled "$unit" 2>/dev/null || true)"
+    printf '%s|%s|%s\n' "$unit" "${active:-not-found}" "${enabled:-not-found}" >> "$UNIT_STATE"
+  done
+fi
 
 # Record a managed path on FIRST run only: back up if it existed, else mark
 # absent. Idempotent across re-runs; teardown restores-or-removes deterministically.

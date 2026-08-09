@@ -89,11 +89,13 @@ boundary) are a Phase-4 per-VM concern and are reconciled there before macOS CI.
 
 ## rpcbind containment
 
-NFSv4-only does not need rpcbind on the wire. The host firewall is inactive, so
-public exposure is prevented by the **cloud security group**: only tcp/udp 88 and
-tcp 2049 are opened; port 111 is not. rpcbind still runs locally because Debian's
-`nfs-server` unit depends on it. Binding rpcbind to loopback is a documented
-future hardening; it is not done here to avoid breaking the nfs-server unit.
+NFSv4-only does not need rpcbind on the wire. During a test, the **cloud security
+group must deny port 111** and expose only tcp/udp 88 plus tcp 2049. Do not assume
+that a provider firewall is attached: verify public reachability before and after
+each run. Debian's NFS packages may enable rpcbind/rpc-statd as a package side
+effect, so the bootstrap snapshots their prior unit states and teardown restores
+those states. If the experiment introduced them, teardown stops/disables them and
+closes port 111; if they were already in use, teardown leaves them as it found them.
 
 ## Notes for review
 

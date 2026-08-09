@@ -14,6 +14,7 @@ EXPORT_ROOT="${EXPORT_ROOT:-/export}"
 SECRETS_DIR=/root/ws-secrets
 BAKROOT="$SECRETS_DIR/backup"
 MANIFEST="$SECRETS_DIR/managed-files"
+UNIT_STATE="$SECRETS_DIR/rpc-unit-state"
 
 [ "$(id -u)" -eq 0 ] || { echo "run with sudo" >&2; exit 1; }
 
@@ -21,6 +22,8 @@ echo "stopping NFS + GSS + KDC services"
 systemctl disable --now nfs-server rpc-svcgssd rpc-gssd 2>/dev/null || true
 systemctl disable --now nfs-idmapd rpc-idmapd 2>/dev/null || true
 systemctl disable --now krb5-kdc 2>/dev/null || true
+systemctl disable --now rpc-statd.service rpc-statd-notify.service 2>/dev/null || true
+systemctl disable --now rpcbind.socket rpcbind.service 2>/dev/null || true
 
 echo "clearing exports"
 if [ -f /etc/exports ]; then : > /etc/exports; exportfs -ua 2>/dev/null || true; fi
@@ -56,6 +59,15 @@ for u in "${WS_USERS[@]}"; do
   userdel "$u" 2>/dev/null || true
 done
 rmdir "$EXPORT_ROOT" 2>/dev/null || true
+
+echo "restoring pre-test rpcbind/rpc-statd unit states"
+if [ -f "$UNIT_STATE" ]; then
+  while IFS='|' read -r unit was_active was_enabled; do
+    [ -n "$unit" ] || continue
+    [ "$was_enabled" = enabled ] && systemctl enable "$unit" 2>/dev/null || true
+    [ "$was_active" = active ] && systemctl start "$unit" 2>/dev/null || true
+  done < "$UNIT_STATE"
+fi
 
 echo "removing secrets, backups, manifest, evidence"
 rm -rf "$SECRETS_DIR" /var/tmp/ws-evidence 2>/dev/null || true
