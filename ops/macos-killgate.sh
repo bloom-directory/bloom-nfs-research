@@ -28,6 +28,7 @@ set -uo pipefail
 : "${WS_PATH:=ws1}"
 : "${WS_PASS:=}"
 : "${RUNNER_TEMP:=/tmp}"
+: "${EXPECTED_MACOS_MAJOR:=26}"
 
 LOG="$RUNNER_TEMP/killgate.txt"
 : > "$LOG"
@@ -59,6 +60,16 @@ cap sw_vers
 cap uname -a
 cap bash --version
 cap sh -c 'command -v kinit kvno klist kdestroy mount_nfs 2>&1; true'
+
+# Fail closed if CI is accidentally pinned to an older macOS generation. This
+# exact mismatch previously let a Sonoma result stand in for the Tahoe target.
+MACOS_VERSION="$(sw_vers -productVersion)"
+MACOS_MAJOR="${MACOS_VERSION%%.*}"
+if [ "$MACOS_MAJOR" != "$EXPECTED_MACOS_MAJOR" ]; then
+  say "FATAL: expected macOS major ${EXPECTED_MACOS_MAJOR}, got ${MACOS_VERSION}; kill-gate is invalid"
+  exit 1
+fi
+say "version gate passed — macOS ${MACOS_VERSION} satisfies Tahoe major ${EXPECTED_MACOS_MAJOR}"
 
 if [ -z "$WS_PASS" ]; then
   say "FATAL: WS_PASS empty — set the WS_WS1_PASS repo secret (w/ws1 password from cocoroco peer.env). Nothing else will run."

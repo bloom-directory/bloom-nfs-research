@@ -16,7 +16,9 @@ on:
 
 jobs:
   killgate:
-    runs-on: macos-14
+    # pm#38 targets current macOS Tahoe. Keep the explicit major-version label
+    # so a stale runner selection cannot silently invalidate the kill-gate.
+    runs-on: macos-26
     timeout-minutes: 15
     env:
       REALM: WORK.SOPHASTRA.COM
@@ -24,6 +26,7 @@ jobs:
       WS_USER: w/ws1
       SPN: nfs/work.sophastra.com
       WS_PATH: ws1
+      EXPECTED_MACOS_MAJOR: "26"
       WS_PASS: ${{ secrets.WS_WS1_PASS }}
     steps:
       - uses: actions/checkout@v4

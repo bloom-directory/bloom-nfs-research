@@ -46,7 +46,7 @@ printf "    Press Enter once the rule is added: "
 read -r _
 
 echo
-echo ">>> step 3/4: trigger the macOS workflow (macos-14) and stream it"
+echo ">>> step 3/4: trigger the macOS workflow (macos-26 Tahoe) and stream it"
 gh workflow run "$WORKFLOW" --repo "$REPO" || die "trigger failed"
 sleep 6
 RUN_ID="$(gh run list --repo "$REPO" --workflow "$WORKFLOW" --limit 1 --json databaseId --jq '.[0].databaseId')"
