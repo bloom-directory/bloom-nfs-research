@@ -13,12 +13,26 @@ name: macOS kill-gate (pm#38)
 #      again afterward).
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: GitHub-hosted Tahoe image
+        required: true
+        default: macos-26
+        type: choice
+        options:
+          - macos-26
+          - macos-26-intel
+      expected_macos_version:
+        description: Optional exact product version gate (for example, 26.6)
+        required: false
+        default: ""
+        type: string
 
 jobs:
   killgate:
     # pm#38 targets current macOS Tahoe. Keep the explicit major-version label
     # so a stale runner selection cannot silently invalidate the kill-gate.
-    runs-on: macos-26
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: 15
     env:
       REALM: WORK.SOPHASTRA.COM
@@ -27,6 +41,7 @@ jobs:
       SPN: nfs/work.sophastra.com
       WS_PATH: ws1
       EXPECTED_MACOS_MAJOR: "26"
+      EXPECTED_MACOS_VERSION: ${{ inputs.expected_macos_version }}
       WS_PASS: ${{ secrets.WS_WS1_PASS }}
     steps:
       - uses: actions/checkout@v4

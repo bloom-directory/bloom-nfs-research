@@ -12,6 +12,8 @@ set -uo pipefail
 REPO="bloom-directory/bloom-nfs-research"
 WORKFLOW="macos-killgate.yml"
 HOST="cocoroco"
+MACOS_RUNNER="${MACOS_RUNNER:-macos-26}"
+EXPECTED_MACOS_VERSION="${EXPECTED_MACOS_VERSION:-}"
 die() { echo "ERROR: $*" >&2; exit 1; }
 
 echo ">>> checking prerequisites"
@@ -46,8 +48,10 @@ printf "    Press Enter once the rule is added: "
 read -r _
 
 echo
-echo ">>> step 3/4: trigger the macOS workflow (macos-26 Tahoe) and stream it"
-gh workflow run "$WORKFLOW" --repo "$REPO" || die "trigger failed"
+echo ">>> step 3/4: trigger the macOS workflow ($MACOS_RUNNER Tahoe) and stream it"
+gh workflow run "$WORKFLOW" --repo "$REPO" \
+  -f "runner=$MACOS_RUNNER" \
+  -f "expected_macos_version=$EXPECTED_MACOS_VERSION" || die "trigger failed"
 sleep 6
 RUN_ID="$(gh run list --repo "$REPO" --workflow "$WORKFLOW" --limit 1 --json databaseId --jq '.[0].databaseId')"
 [ -n "$RUN_ID" ] || die "couldn't find the run ID — check $REPO/actions"

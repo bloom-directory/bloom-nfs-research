@@ -29,6 +29,7 @@ set -uo pipefail
 : "${WS_PASS:=}"
 : "${RUNNER_TEMP:=/tmp}"
 : "${EXPECTED_MACOS_MAJOR:=26}"
+: "${EXPECTED_MACOS_VERSION:=}"
 
 LOG="$RUNNER_TEMP/killgate.txt"
 : > "$LOG"
@@ -67,6 +68,10 @@ MACOS_VERSION="$(sw_vers -productVersion)"
 MACOS_MAJOR="${MACOS_VERSION%%.*}"
 if [ "$MACOS_MAJOR" != "$EXPECTED_MACOS_MAJOR" ]; then
   say "FATAL: expected macOS major ${EXPECTED_MACOS_MAJOR}, got ${MACOS_VERSION}; kill-gate is invalid"
+  exit 1
+fi
+if [ -n "$EXPECTED_MACOS_VERSION" ] && [ "$MACOS_VERSION" != "$EXPECTED_MACOS_VERSION" ]; then
+  say "FATAL: expected macOS ${EXPECTED_MACOS_VERSION}, got ${MACOS_VERSION}; kill-gate is invalid"
   exit 1
 fi
 say "version gate passed — macOS ${MACOS_VERSION} satisfies Tahoe major ${EXPECTED_MACOS_MAJOR}"
