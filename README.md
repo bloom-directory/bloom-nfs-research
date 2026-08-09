@@ -27,7 +27,7 @@ Research repo for [bloom-directory/pm#38](https://github.com/bloom-directory/pm/
 |---|---|---|---|
 | `macos-14` (five original runs) | 14.8.7 / Darwin 23.6.0 | arm64 | NFSv4 `RPC prog. not avail` |
 | `macos-26` ([run 31338559348](https://github.com/bloom-directory/bloom-nfs-research/actions/runs/31338559348)) | 26.5.2 / Darwin 25.5.0 | arm64 | NFSv4 `RPC prog. not avail` |
-| `macos-26-intel` ([run 31338643220](https://github.com/bloom-directory/bloom-nfs-research/actions/runs/31338643220)) | **26.6 / Darwin 25.6.0** | x86_64 | NFSv4 `RPC prog. not avail` |
+| `macos-26-intel` ([corrected run 31339167654](https://github.com/bloom-directory/bloom-nfs-research/actions/runs/31339167654)) | **26.6 / Darwin 25.6.0** | x86_64 | explicit NFSv4.1 `RPC prog. not avail` |
 
 Established:
 
@@ -35,7 +35,7 @@ Established:
 - ✅ **macOS Heimdal `kinit` authenticates against the Linux MIT KDC** — admin *and* a freshly created non-admin user both obtain TGTs.
 - ✅ Service ticket for `nfs/work.sophastra.com@WORK.SOPHASTRA.COM` acquired (macOS ships no `kvno`; `kgetcred` works).
 - ✅ Non-admin user creation + non-admin `kinit` work (no `/etc` writes; ccache isolated under `$RUNNER_TEMP`).
-- ❌ The admin compatibility control cannot mount with `vers=4,sec=krb5p`; both `/ws1` and `/export/ws1` return `RPC prog. not avail` on Sonoma 14.8.7, Tahoe 26.5.2, and the exact-current Tahoe 26.6.
+- ❌ The admin compatibility control cannot mount with `vers=4.1,sec=krb5p`; both `/ws1` and `/export/ws1` return `RPC prog. not avail` on the corrected exact-current Tahoe 26.6 run. Explicit v4.0 and v3 controls fail the same way against the v4.1-only server.
 - ⛔ The non-admin mount is deliberately skipped when no admin variant works. Criterion #4 is therefore **unreachable/untested**, not an observed non-admin failure.
 
 The Linux peer previously mounted the same design with `sec=krb5p` (peer-test green). For the Tahoe reruns, the rebuilt server passed KDC authentication, service-ticket acquisition, NFSv4 RPC registration, v4.1-only configuration, `krb5p`-only exports, and listener gates (`evidence/server-run-20260809/`). This narrows the failure to macOS/Linux NFS interoperability or the GitHub-hosted Mac environment; it does not distinguish those two causes. Earlier server-side compatibility levers did not change the macOS NFSv4 error:

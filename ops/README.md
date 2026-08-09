@@ -87,6 +87,38 @@ boundary) are a Phase-4 per-VM concern and are reconciled there before macOS CI.
   hard-expiry timing (Step 5, separate), or sleep/roaming (criterion #7,
   device-only).
 
+## Physical Mac handoff
+
+`physical-mac-test.sh` is the no-sudo, built-in-tools-only test for a coworker's
+real Mac. The coworker sends the operator three things before the scheduled
+window:
+
+1. `sw_vers -productVersion` output (currently required: `26.6`);
+2. the contents of an SSH **public** key such as `~/.ssh/id_ed25519.pub` (never
+   the private key);
+3. their current public IPv4 from `curl -4 https://icanhazip.com`, taken on the
+   same Mac and network that will run the test.
+
+The operator rebuilds cocoroco, scopes tcp/udp 88 and tcp 2049 to that IPv4/32,
+and installs the public key as a temporary restricted/forced-command SSH entry.
+That SSH command returns only the one-hour Kerberos password; it does not grant a
+shell or forwarding. After the operator says **ready**, the coworker runs:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/bloom-directory/bloom-nfs-research/main/ops/physical-mac-test.sh
+bash physical-mac-test.sh < <(ssh -T -i ~/.ssh/id_ed25519 \
+  -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
+  cocoroco@work.sophastra.com)
+```
+
+They send back the `bloom-nfs-physical-*.txt` file named at the end. The script
+never invokes sudo. It checks the exact OS version, records whether the current
+account is a standard or admin-group account, acquires the Kerberos ticket,
+requests explicit NFSv4.1 + `krb5p`, performs read/write/rename/delete if the
+mount succeeds, unmounts, destroys the ticket, and removes all temporary files.
+Only the transcript remains. The operator then removes the forced SSH key,
+credential, firewall rules, realm, exports, and test data.
+
 ## rpcbind containment
 
 NFSv4-only does not need rpcbind on the wire. During a test, the **cloud security

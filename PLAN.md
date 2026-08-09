@@ -266,7 +266,7 @@ mkdir -p "$HOME/RemoteWorkspace"
 # resvport is the root-only option; macOS default is an unprivileged source
 # port, so no noresvport is needed. principal=/sprincipal= remove cache/SPN
 # ambiguity.
-mount_nfs -o vers=4,sec=krb5p,\
+mount_nfs -o vers=4.1,sec=krb5p,\
 principal=w/<id>@WORK.SOPHASTRA.COM,sprincipal=nfs/<WORKSPACE-FQDN>@WORK.SOPHASTRA.COM \
   <WORKSPACE-FQDN>:/ "$HOME/RemoteWorkspace"
 
