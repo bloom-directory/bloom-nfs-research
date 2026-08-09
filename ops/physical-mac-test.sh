@@ -93,8 +93,13 @@ if [ -t 0 ]; then
   echo "+ kinit $PRINCIPAL (enter the one-hour test password; input is hidden)"
   kinit "$PRINCIPAL" || die "kinit failed"
 else
-  IFS= read -r WS_PASS || die "no one-time password received on stdin"
-  [ -n "$WS_PASS" ] || die "empty one-time password received on stdin"
+  WS_PASS=""
+  while IFS= read -r credential_line; do
+    case "$credential_line" in
+      BLOOM_NFS_PASSWORD=*) WS_PASS="${credential_line#BLOOM_NFS_PASSWORD=}" ;;
+    esac
+  done
+  [ -n "$WS_PASS" ] || die "no labeled one-time password received on stdin"
   PWFILE="$RUNROOT/pw"
   (umask 077; printf '%s' "$WS_PASS" > "$PWFILE")
   unset WS_PASS
