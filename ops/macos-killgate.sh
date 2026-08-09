@@ -109,11 +109,11 @@ say "reachability preflight"
 cap bash -c "echo > /dev/tcp/${FQDN}/88"   && echo "tcp/88 OK"   | tee -a "$LOG" >&2 || echo "tcp/88 FAIL"   | tee -a "$LOG" >&2
 cap bash -c "echo > /dev/tcp/${FQDN}/2049" && echo "tcp/2049 OK" | tee -a "$LOG" >&2 || echo "tcp/2049 FAIL" | tee -a "$LOG" >&2
 
-# Runs 2-3: vers=4 + /ws1 fails "RPC prog. not avail" despite the server having
-# nfs v3+v4, mountd v3, nfs_acl, nlockmgr ALL registered and responding remotely.
-# So Phase A probes a (version x path) matrix to isolate what macOS's client
-# requires — diagnosis, not guessing. (vers=4.1 is invalid macOS syntax; major only.)
-V4K="vers=4,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
+# Apple documents an omitted NFSv4 minor as v4.0, so test explicit v4.1 first.
+# Sonoma 14.8.7 rejected vers=4.1 as illegal, but that does not establish what
+# current Tahoe accepts. Keep explicit v4.0 and v3 controls for diagnosis.
+V41K="vers=4.1,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
+V40K="vers=4,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
 V3K="vers=3,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
 WOPTS=""; WPATH=""   # first winning variant — consumed by Phase B
 
@@ -139,13 +139,15 @@ try_mount() {
   say "  -> $label failed"
   return 1
 }
-for v in m1 m2 m3 m4; do mkdir -p "$RUNNER_TEMP/$v"; done
-try_mount "v4+krb5p /${WS_PATH}"         "$V4K" "/${WS_PATH}"        "$RUNNER_TEMP/m1"
-try_mount "v4+krb5p /export/${WS_PATH}"  "$V4K" "/export/${WS_PATH}" "$RUNNER_TEMP/m2"
-try_mount "v3+krb5p /${WS_PATH}"         "$V3K" "/${WS_PATH}"        "$RUNNER_TEMP/m3"
-try_mount "v3+krb5p /export/${WS_PATH}"  "$V3K" "/export/${WS_PATH}" "$RUNNER_TEMP/m4"
-say "PHASE A RESULT: winner = ${WOPTS:+opts={$WOPTS} path={$WPATH}}${WOPTS:-<none of the 4 variants mounted>}"
-for v in m1 m2 m3 m4; do "$TOSC" 15 umount "$RUNNER_TEMP/$v" 2>/dev/null || true; done
+for v in m1 m2 m3 m4 m5 m6; do mkdir -p "$RUNNER_TEMP/$v"; done
+try_mount "v4.1+krb5p /${WS_PATH}"         "$V41K" "/${WS_PATH}"        "$RUNNER_TEMP/m1"
+try_mount "v4.1+krb5p /export/${WS_PATH}"  "$V41K" "/export/${WS_PATH}" "$RUNNER_TEMP/m2"
+try_mount "v4.0+krb5p /${WS_PATH}"         "$V40K" "/${WS_PATH}"        "$RUNNER_TEMP/m3"
+try_mount "v4.0+krb5p /export/${WS_PATH}"  "$V40K" "/export/${WS_PATH}" "$RUNNER_TEMP/m4"
+try_mount "v3+krb5p /${WS_PATH}"           "$V3K"  "/${WS_PATH}"        "$RUNNER_TEMP/m5"
+try_mount "v3+krb5p /export/${WS_PATH}"    "$V3K"  "/export/${WS_PATH}" "$RUNNER_TEMP/m6"
+say "PHASE A RESULT: winner = ${WOPTS:+opts={$WOPTS} path={$WPATH}}${WOPTS:-<none of the 6 variants mounted>}"
+for v in m1 m2 m3 m4 m5 m6; do "$TOSC" 15 umount "$RUNNER_TEMP/$v" 2>/dev/null || true; done
 cap kdestroy 2>/dev/null || true
 rm -f "$PWFILE"
 
