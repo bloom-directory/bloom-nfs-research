@@ -1,0 +1,29 @@
+Netid State  Recv-Q Send-Q                   Local Address:Port  Peer Address:PortProcess                                                      
+udp   UNCONN 0      0                         5.78.214.195:68         0.0.0.0:*    users:(("dhcpcd",pid=725,fd=3))                             
+udp   UNCONN 0      0                              0.0.0.0:88         0.0.0.0:*    users:(("krb5kdc",pid=793038,fd=8))                         
+udp   UNCONN 0      0                              0.0.0.0:111        0.0.0.0:*    users:(("rpcbind",pid=767574,fd=5),("systemd",pid=1,fd=128))
+udp   UNCONN 0      0                              0.0.0.0:51820      0.0.0.0:*                                                                
+udp   UNCONN 0      0                            127.0.0.1:768        0.0.0.0:*    users:(("rpc.statd",pid=768032,fd=5))                       
+udp   UNCONN 0      0                              0.0.0.0:34639      0.0.0.0:*    users:(("rpc.statd",pid=768032,fd=8))                       
+udp   UNCONN 0      0                                 [::]:88            [::]:*    users:(("krb5kdc",pid=793038,fd=9))                         
+udp   UNCONN 0      0                                 [::]:111           [::]:*    users:(("rpcbind",pid=767574,fd=7),("systemd",pid=1,fd=130))
+udp   UNCONN 0      0                                    *:443              *:*    users:(("caddy",pid=17386,fd=8))                            
+udp   UNCONN 0      0               [2a01:4ff:1f0:b2ab::1]:546           [::]:*    users:(("dhcpcd",pid=837,fd=3))                             
+udp   UNCONN 0      0      [fe80::fd63:97e4:a56f:de6]%eth0:546           [::]:*    users:(("dhcpcd",pid=699,fd=3))                             
+udp   UNCONN 0      0                                 [::]:51820         [::]:*                                                                
+udp   UNCONN 0      0                                 [::]:33611         [::]:*    users:(("rpc.statd",pid=768032,fd=10))                      
+tcp   LISTEN 0      4096                         127.0.0.1:2019       0.0.0.0:*    users:(("caddy",pid=17386,fd=7))                            
+tcp   LISTEN 0      4096                           0.0.0.0:2049       0.0.0.0:*                                                                
+tcp   LISTEN 0      128                            0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=994,fd=6))                               
+tcp   LISTEN 0      2048                         127.0.0.1:8000       0.0.0.0:*    users:(("uvicorn",pid=246408,fd=13))                        
+tcp   LISTEN 0      5                              0.0.0.0:88         0.0.0.0:*    users:(("krb5kdc",pid=793038,fd=10))                        
+tcp   LISTEN 0      4096                           0.0.0.0:111        0.0.0.0:*    users:(("rpcbind",pid=767574,fd=4),("systemd",pid=1,fd=127))
+tcp   LISTEN 0      4096                           0.0.0.0:36185      0.0.0.0:*    users:(("rpc.statd",pid=768032,fd=9))                       
+tcp   LISTEN 0      4096                              [::]:2049          [::]:*                                                                
+tcp   LISTEN 0      4096                              [::]:40975         [::]:*    users:(("rpc.statd",pid=768032,fd=11))                      
+tcp   LISTEN 0      128                               [::]:22            [::]:*    users:(("sshd",pid=994,fd=7))                               
+tcp   LISTEN 0      4096                                 *:80               *:*    users:(("caddy",pid=17386,fd=10))                           
+tcp   LISTEN 0      5                                 [::]:88            [::]:*    users:(("krb5kdc",pid=793038,fd=11))                        
+tcp   LISTEN 0      4096                              [::]:111           [::]:*    users:(("rpcbind",pid=767574,fd=6),("systemd",pid=1,fd=129))
+tcp   LISTEN 0      4096                                 *:443              *:*    users:(("caddy",pid=17386,fd=9))                            
+tcp   LISTEN 0      511                                  *:3000             *:*    users:(("next-server (v1",pid=246423,fd=18))                

@@ -21,16 +21,16 @@ experience works, not to force NFS into production.
 - **Second Linux peer.** `kyle@apps` (SSH) — the stand-in client that proves
   the Linux track and plays the Mac's role until the macOS kill gate runs.
 - **macOS device.** None is owned. The macOS kill gate runs on GitHub-hosted
-  macOS runners (`macos-14` Apple Silicon, `macos-13` Intel) instead of a
+  Tahoe runners (`macos-26` Apple Silicon, `macos-26-intel` Intel) instead of a
   personal device. A physical laptop is needed only for criterion #7 (real
   sleep and Wi-Fi/hotspot roaming) and remains optional / deferred.
 
-## Pending check
+## Current live state
 
-- **cocoroco reachability.** A read-only preflight from this environment timed
-  out after the first successful probe. Re-confirm SSH to cocoroco and to
-  `kyle@apps`, that ports 88/2049 are free on cocoroco, and clean state, before
-  installing anything.
+- **cocoroco.** The Tahoe rerun server was cleanly torn down after evidence was
+  captured. Re-run `ops/server-bootstrap.sh` before another test.
+- **Linux peer.** The original Linux proof remains valid, but `kyle@apps`
+  refused SSH connections during the Tahoe rerun and could not be repeated.
 
 ## Status labels
 
@@ -231,16 +231,15 @@ bundle. No secret appears in logs, URLs, metrics, or analytics.
 
 ### Step 7 — macOS kill gate on GitHub-hosted runners (primary); physical device only for #7
 
-No Mac is owned. The kill gate runs on GitHub-hosted macOS runners
-(`macos-14` Apple Silicon, `macos-13` Intel) as a CI job against cocoroco. The
+No Mac is owned. The kill gate runs on GitHub-hosted Tahoe runners
+(`macos-26` Apple Silicon, `macos-26-intel` Intel) as a CI job against cocoroco. The
 same job is reusable later on a physical laptop for criterion #7. Package as:
 
 1. SIWE sign (headless browser step in CI, or interactive on a real device);
 2. generated connection bundle (principal, password, exact commands, FQDN);
 3. shell runner with cleanup traps, no interactive prompts needed in CI;
-4. non-admin test first — create a non-admin user inside the runner and run the
-   mount as that user (the runner's default account is admin);
-5. optional sudo control run afterward, for contrast.
+4. admin compatibility control first (the runner's default account is admin);
+5. if a variant mounts, create a non-admin user and repeat it as that user.
 
 Two CI-specific unknowns (themselves answered by the first run): whether
 `mount_nfs -o sec=krb5p` is permitted inside a runner (kernel/SIP/MDM
@@ -267,7 +266,7 @@ mkdir -p "$HOME/RemoteWorkspace"
 # resvport is the root-only option; macOS default is an unprivileged source
 # port, so no noresvport is needed. principal=/sprincipal= remove cache/SPN
 # ambiguity.
-mount_nfs -o vers=4.1,sec=krb5p,\
+mount_nfs -o vers=4,sec=krb5p,\
 principal=w/<id>@WORK.SOPHASTRA.COM,sprincipal=nfs/<WORKSPACE-FQDN>@WORK.SOPHASTRA.COM \
   <WORKSPACE-FQDN>:/ "$HOME/RemoteWorkspace"
 
@@ -290,7 +289,7 @@ lookup by default; the NFS/GSS credential-cache handoff is the real Mac test, so
 the runner isolates the cache and pre-fetches `nfs/<WORKSPACE-FQDN>@WORK.SOPHASTRA.COM`
 before mounting. Apple XNU authorizes non-root mounts on a caller-owned
 mountpoint and records that caller as mount owner (`bsd/vfs/vfs_syscalls.c`);
-Tahoe/MDM policy still needs empirical validation.
+hosted Tahoe policy is empirically negative; physical-device policy remains untested.
 
 Decision after the transcript:
 
@@ -386,7 +385,7 @@ pm#38 is addressed when this repository contains:
 
 ## Immediate next action
 
-Realm (`WORK.SOPHASTRA.COM` / `work.sophastra.com`) and the Linux peer
-(`kyle@apps`) are resolved. Remaining gate: re-confirm SSH to cocoroco and
-`kyle@apps`, verify ports 88/2049 are free and clean state on cocoroco, then
-start Step 1 (publish `_kerberos` DNS records under `work.sophastra.com`).
+Run the same kill-gate on a physical Mac updated to Tahoe 26.6 if a device is
+available; that distinguishes an OS interoperability failure from a
+GitHub-hosted-runner restriction. Otherwise proceed to Step 8 comparators, with
+WebDAV/HTTPS as the leading zero-install candidate.

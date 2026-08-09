@@ -1,0 +1,30 @@
+## exportfs -v
+/export       	<world>(sync,wdelay,hide,no_subtree_check,fsid=0,sec=krb5p,rw,insecure,root_squash,no_all_squash)
+/export/ws1   	<world>(sync,wdelay,hide,no_subtree_check,sec=krb5p,rw,insecure,root_squash,no_all_squash)
+/export/ws2   	<world>(sync,wdelay,hide,no_subtree_check,sec=krb5p,rw,insecure,root_squash,no_all_squash)
+## nfsd version booleans (nfsconf --get nfsd <tag>)
+vers2=no
+vers3=no
+vers4=yes
+vers4.0=no
+vers4.1=yes
+vers4.2=no
+## keytab
+Keytab name: FILE:/etc/krb5.keytab
+KVNO Principal
+---- --------------------------------------------------------------------------
+   1 nfs/work.sophastra.com@WORK.SOPHASTRA.COM
+   1 nfs/work.sophastra.com@WORK.SOPHASTRA.COM
+## ws principals
+Principal: w/ws1@WORK.SOPHASTRA.COM
+Attributes: DISALLOW_FORWARDABLE DISALLOW_RENEWABLE REQUIRES_PRE_AUTH
+Principal: w/ws2@WORK.SOPHASTRA.COM
+Attributes: DISALLOW_FORWARDABLE DISALLOW_RENEWABLE REQUIRES_PRE_AUTH
+## services
+active
+active
+active
+## rpc-gssd (client; should be inactive on server)
+inactive
+## kadmind (should be masked/inactive)
+inactive
