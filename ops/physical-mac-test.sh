@@ -89,18 +89,14 @@ cap bash -c "echo > /dev/tcp/${FQDN}/88" || die "tcp/88 is unreachable"
 cap bash -c "echo > /dev/tcp/${FQDN}/2049" || die "tcp/2049 is unreachable"
 
 say "Kerberos authentication"
-if [ -t 0 ]; then
-  SSH_ARGS=(-T -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
-  [ -n "$CREDENTIAL_SSH_IDENTITY" ] && SSH_ARGS+=(-i "$CREDENTIAL_SSH_IDENTITY")
-  echo "+ ssh <restricted-credential-endpoint>"
-  set +e
-  CREDENTIAL_OUTPUT="$(ssh "${SSH_ARGS[@]}" "$CREDENTIAL_SSH_HOST")"
-  SSH_RC=$?
-  set -e
-  [ "$SSH_RC" -eq 0 ] || die "SSH credential retrieval failed (exit $SSH_RC)"
-else
-  CREDENTIAL_OUTPUT="$(cat)"
-fi
+SSH_ARGS=(-T -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+[ -n "$CREDENTIAL_SSH_IDENTITY" ] && SSH_ARGS+=(-i "$CREDENTIAL_SSH_IDENTITY")
+echo "+ ssh <restricted-credential-endpoint>"
+set +e
+CREDENTIAL_OUTPUT="$(ssh "${SSH_ARGS[@]}" "$CREDENTIAL_SSH_HOST")"
+SSH_RC=$?
+set -e
+[ "$SSH_RC" -eq 0 ] || die "SSH credential retrieval failed (exit $SSH_RC)"
 WS_PASS=""
 while IFS= read -r credential_line; do
   case "$credential_line" in
