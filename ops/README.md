@@ -12,6 +12,9 @@ no unattended privileged execution on either shared host.
 | `peer-bootstrap.sh` | kyle@apps | sudo | NFS/Kerberos client, rpc-gssd, peer users ws1peer/ws2peer |
 | `peer-test.sh` | kyle@apps | sudo | positive suite + flavor rejections + cross-tenant denial + RPC pcap |
 | `peer-teardown.sh` | kyle@apps | sudo | restore kyle@apps |
+| `physical-mac-test.sh` | coworker's Mac | ordinary user | one-command physical Tahoe NFSv4.1 kill-gate |
+| `server-authorize-physical-mac.sh` | cocoroco | root | install one restricted credential-only SSH public key |
+| `server-revoke-physical-mac.sh` | cocoroco | root | remove that key and its one-hour credential |
 
 ## Safety on cocoroco
 
@@ -90,25 +93,17 @@ boundary) are a Phase-4 per-VM concern and are reconciled there before macOS CI.
 ## Physical Mac handoff
 
 `physical-mac-test.sh` is the no-sudo, built-in-tools-only test for a coworker's
-real Mac. The coworker sends the operator three things before the scheduled
-window:
+real Mac. Before the scheduled window, the coworker provides the contents of an
+existing SSH **public** key (never the private key) and confirms the Mac runs
+26.6. The operator rebuilds cocoroco and installs that key as a temporary
+restricted/forced-command entry. It returns only the one-hour Kerberos password;
+it grants no shell, PTY, or forwarding.
 
-1. `sw_vers -productVersion` output (currently required: `26.6`);
-2. the contents of an SSH **public** key such as `~/.ssh/id_ed25519.pub` (never
-   the private key);
-3. their current public IPv4 from `curl -4 https://icanhazip.com`, taken on the
-   same Mac and network that will run the test.
-
-The operator rebuilds cocoroco, scopes tcp/udp 88 and tcp 2049 to that IPv4/32,
-and installs the public key as a temporary restricted/forced-command SSH entry.
-That SSH command returns only the one-hour Kerberos password; it does not grant a
-shell or forwarding. After the operator says **ready**, the coworker runs:
+After the operator says **ready**, the coworker runs exactly:
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/bloom-directory/bloom-nfs-research/main/ops/physical-mac-test.sh
-bash physical-mac-test.sh < <(ssh -T -i ~/.ssh/id_ed25519 \
-  -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
-  cocoroco@work.sophastra.com)
+git pull --ff-only origin main
+bash ops/physical-mac-test.sh
 ```
 
 They send back the `bloom-nfs-physical-*.txt` file named at the end. The script
@@ -116,8 +111,10 @@ never invokes sudo. It checks the exact OS version, records whether the current
 account is a standard or admin-group account, acquires the Kerberos ticket,
 requests explicit NFSv4.1 + `krb5p`, performs read/write/rename/delete if the
 mount succeeds, unmounts, destroys the ticket, and removes all temporary files.
-Only the transcript remains. The operator then removes the forced SSH key,
-credential, firewall rules, realm, exports, and test data.
+Only the transcript remains. If SSH does not automatically select the matching
+key, rerun once as `CREDENTIAL_SSH_IDENTITY=/path/to/key bash
+ops/physical-mac-test.sh`. The operator then removes the forced SSH key,
+credential, realm, exports, test data, and network exposure.
 
 ## rpcbind containment
 

@@ -60,6 +60,20 @@ for u in "${WS_USERS[@]}"; do
 done
 rmdir "$EXPORT_ROOT" 2>/dev/null || true
 
+echo "removing restricted physical-Mac SSH credential access"
+TARGET_USER="${TARGET_USER:-cocoroco}"
+if ENTRY="$(getent passwd "$TARGET_USER")" && [ -n "$ENTRY" ]; then
+  IFS=: read -r _ _ TARGET_UID TARGET_GID _ TARGET_HOME _ <<< "$ENTRY"
+  AUTHORIZED_KEYS="$TARGET_HOME/.ssh/authorized_keys"
+  if [ -f "$AUTHORIZED_KEYS" ]; then
+    AUTH_TMP="$(mktemp)"
+    grep -v '[[:space:]]bloom-nfs-physical-test$' "$AUTHORIZED_KEYS" > "$AUTH_TMP" || true
+    install -m 600 -o "$TARGET_UID" -g "$TARGET_GID" "$AUTH_TMP" "$AUTHORIZED_KEYS"
+    rm -f "$AUTH_TMP"
+  fi
+  rm -f "$TARGET_HOME/.bloom-nfs-physical-credential"
+fi
+
 echo "restoring pre-test rpcbind/rpc-statd unit states"
 if [ -f "$UNIT_STATE" ]; then
   while IFS='|' read -r unit was_active was_enabled; do

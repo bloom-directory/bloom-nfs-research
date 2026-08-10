@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 # Physical macOS Tahoe kill-gate. Built-in tools only; never invokes sudo.
 #
-# Interactive credential entry:
-#   bash physical-mac-test.sh
-#
-# SSH-key delivery of the one-time Kerberos password:
-#   bash physical-mac-test.sh < <(ssh -T -i /path/to/key cocoroco@work.sophastra.com)
+# Run from a current checkout. The script automatically uses SSH to retrieve
+# the one-hour Kerberos password through the coworker's restricted public key:
+#   bash ops/physical-mac-test.sh
 set -uo pipefail
 
 REALM="${REALM:-WORK.SOPHASTRA.COM}"
@@ -14,6 +12,8 @@ WS_USER="${WS_USER:-w/ws1}"
 SPN="${SPN:-nfs/work.sophastra.com}"
 WS_PATH="${WS_PATH:-ws1}"
 EXPECTED_MACOS_VERSION="${EXPECTED_MACOS_VERSION:-26.6}"
+CREDENTIAL_SSH_HOST="${CREDENTIAL_SSH_HOST:-cocoroco@work.sophastra.com}"
+CREDENTIAL_SSH_IDENTITY="${CREDENTIAL_SSH_IDENTITY:-}"
 PRINCIPAL="${WS_USER}@${REALM}"
 SERVER_PRINCIPAL="${SPN}@${REALM}"
 LOG="${BLOOM_NFS_LOG:-$PWD/bloom-nfs-physical-$(date +%Y%m%d-%H%M%S).txt}"
@@ -90,23 +90,31 @@ cap bash -c "echo > /dev/tcp/${FQDN}/2049" || die "tcp/2049 is unreachable"
 
 say "Kerberos authentication"
 if [ -t 0 ]; then
-  echo "+ kinit $PRINCIPAL (enter the one-hour test password; input is hidden)"
-  kinit "$PRINCIPAL" || die "kinit failed"
+  SSH_ARGS=(-T -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new)
+  [ -n "$CREDENTIAL_SSH_IDENTITY" ] && SSH_ARGS+=(-i "$CREDENTIAL_SSH_IDENTITY")
+  echo "+ ssh <restricted-credential-endpoint>"
+  set +e
+  CREDENTIAL_OUTPUT="$(ssh "${SSH_ARGS[@]}" "$CREDENTIAL_SSH_HOST")"
+  SSH_RC=$?
+  set -e
+  [ "$SSH_RC" -eq 0 ] || die "SSH credential retrieval failed (exit $SSH_RC)"
 else
-  WS_PASS=""
-  while IFS= read -r credential_line; do
-    case "$credential_line" in
-      BLOOM_NFS_PASSWORD=*) WS_PASS="${credential_line#BLOOM_NFS_PASSWORD=}" ;;
-    esac
-  done
-  [ -n "$WS_PASS" ] || die "no labeled one-time password received on stdin"
-  PWFILE="$RUNROOT/pw"
-  (umask 077; printf '%s' "$WS_PASS" > "$PWFILE")
-  unset WS_PASS
-  echo "+ kinit --password-file=<temporary> $PRINCIPAL"
-  kinit --password-file="$PWFILE" "$PRINCIPAL" || die "kinit failed"
-  rm -f "$PWFILE"
+  CREDENTIAL_OUTPUT="$(cat)"
 fi
+WS_PASS=""
+while IFS= read -r credential_line; do
+  case "$credential_line" in
+    BLOOM_NFS_PASSWORD=*) WS_PASS="${credential_line#BLOOM_NFS_PASSWORD=}" ;;
+  esac
+done <<< "$CREDENTIAL_OUTPUT"
+unset CREDENTIAL_OUTPUT credential_line
+[ -n "$WS_PASS" ] || die "credential endpoint returned no labeled one-time password"
+PWFILE="$RUNROOT/pw"
+(umask 077; printf '%s' "$WS_PASS" > "$PWFILE")
+unset WS_PASS
+echo "+ kinit --password-file=<temporary> $PRINCIPAL"
+kinit --password-file="$PWFILE" "$PRINCIPAL" || die "kinit failed"
+rm -f "$PWFILE"
 cap klist
 if command -v kgetcred >/dev/null 2>&1; then
   cap kgetcred "$SERVER_PRINCIPAL" || die "service-ticket acquisition failed"
