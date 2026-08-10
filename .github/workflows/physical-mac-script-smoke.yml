@@ -1,0 +1,47 @@
+name: Physical Mac coworker-script smoke test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: macos-26-intel
+    timeout-minutes: 10
+    env:
+      PHYSICAL_MAC_TEST_SSH_KEY: ${{ secrets.PHYSICAL_MAC_TEST_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install disposable SSH identity
+        shell: bash
+        run: |
+          set -eu
+          [ -n "$PHYSICAL_MAC_TEST_SSH_KEY" ]
+          printf '%s\n' "$PHYSICAL_MAC_TEST_SSH_KEY" > "$RUNNER_TEMP/physical-mac-test-key"
+          chmod 600 "$RUNNER_TEMP/physical-mac-test-key"
+
+      - name: Run the exact coworker script
+        shell: bash
+        run: |
+          set +e
+          CREDENTIAL_SSH_IDENTITY="$RUNNER_TEMP/physical-mac-test-key" \
+            bash ops/physical-mac-test.sh
+          rc=$?
+          echo "physical-mac-test exit=$rc"
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 20 ]; then
+            echo "unexpected script failure; expected mount success (0) or clean mount-negative (20)" >&2
+            exit "$rc"
+          fi
+
+      - name: Remove disposable SSH identity
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/physical-mac-test-key"
+
+      - name: Upload transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: physical-mac-script-smoke-transcript
+          path: bloom-nfs-physical-*.txt
+          if-no-files-found: error
