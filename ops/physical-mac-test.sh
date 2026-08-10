@@ -31,8 +31,12 @@ cap uname -a
 cap id
 
 MACOS_VERSION="$(sw_vers -productVersion)"
-[ "$MACOS_VERSION" = "$EXPECTED_MACOS_VERSION" ] \
-  || die "expected macOS $EXPECTED_MACOS_VERSION, got $MACOS_VERSION"
+if [ "$MACOS_VERSION" = "$EXPECTED_MACOS_VERSION" ]; then
+  echo "macos_version_match=yes (target=$EXPECTED_MACOS_VERSION)"
+else
+  echo "WARNING: target macOS is $EXPECTED_MACOS_VERSION; continuing on $MACOS_VERSION"
+  echo "macos_version_match=no (result applies to macOS $MACOS_VERSION)"
+fi
 for tool in kinit klist kdestroy mount_nfs umount perl; do
   command -v "$tool" >/dev/null 2>&1 || die "required built-in tool missing: $tool"
 done

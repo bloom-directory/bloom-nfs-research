@@ -94,10 +94,10 @@ boundary) are a Phase-4 per-VM concern and are reconciled there before macOS CI.
 
 `physical-mac-test.sh` is the no-sudo, built-in-tools-only test for a coworker's
 real Mac. Before the scheduled window, the coworker provides the contents of an
-existing SSH **public** key (never the private key) and confirms the Mac runs
-26.6. The operator rebuilds cocoroco and installs that key as a temporary
-restricted/forced-command entry. It returns only the one-hour Kerberos password;
-it grants no shell, PTY, or forwarding.
+existing SSH **public** key (never the private key). The operator rebuilds
+cocoroco and installs that key as a temporary restricted/forced-command entry.
+It returns only the one-hour Kerberos password; it grants no shell, PTY, or
+forwarding.
 
 After the operator says **ready**, the coworker runs exactly:
 
@@ -107,14 +107,17 @@ bash ops/physical-mac-test.sh
 ```
 
 They send back the `bloom-nfs-physical-*.txt` file named at the end. The script
-never invokes sudo. It checks the exact OS version, records whether the current
-account is a standard or admin-group account, acquires the Kerberos ticket,
-requests explicit NFSv4.1 + `krb5p`, performs read/write/rename/delete if the
-mount succeeds, unmounts, destroys the ticket, and removes all temporary files.
-Only the transcript remains. If SSH does not automatically select the matching
-key, rerun once as `CREDENTIAL_SSH_IDENTITY=/path/to/key bash
-ops/physical-mac-test.sh`. The operator then removes the forced SSH key,
-credential, realm, exports, test data, and network exposure.
+never invokes sudo. It records the exact OS version and warns, but continues, if
+it differs from the 26.6 research target. A non-26.6 result applies to the
+reported version and does not by itself settle the 26.6 question. The script
+also records whether the current account is a standard or admin-group account,
+acquires the Kerberos ticket, requests explicit NFSv4.1 + `krb5p`, performs
+read/write/rename/delete if the mount succeeds, unmounts, destroys the ticket,
+and removes all temporary files. Only the transcript remains. If SSH does not
+automatically select the matching key, rerun once as
+`CREDENTIAL_SSH_IDENTITY=/path/to/key bash ops/physical-mac-test.sh`. The
+operator then removes the forced SSH key, credential, realm, exports, test data,
+and network exposure.
 
 ## rpcbind containment
 
