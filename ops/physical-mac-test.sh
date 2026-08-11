@@ -74,7 +74,7 @@ cat > "$KRB5CONF" <<EOF
   }
 EOF
 export KRB5_CONFIG="$KRB5CONF"
-export KRB5CCNAME="FILE:$RUNROOT/ccache"
+unset KRB5CCNAME
 
 cleanup() {
   set +e
@@ -122,7 +122,7 @@ if command -v kgetcred >/dev/null 2>&1; then
 fi
 
 say "ordinary-user mount: explicit NFSv4.1 + krb5p"
-OPTS="tcp,retrycnt=0,vers=4.1,sec=krb5p,principal=${PRINCIPAL},sprincipal=${SERVER_PRINCIPAL}"
+OPTS="tcp,retrycnt=0,vers=4.1,sec=krb5p"
 echo "+ mount_nfs -o $OPTS ${FQDN}:/${WS_PATH} $MNT"
 set +e
 "$TO" 60 mount_nfs -o "$OPTS" "${FQDN}:/${WS_PATH}" "$MNT"
