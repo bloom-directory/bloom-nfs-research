@@ -17,7 +17,8 @@
 # Built-in tools only: kinit / kvno / klist / kdestroy / mount_nfs (Heimdal +
 # Apple XNU nfs client). No Homebrew, no /etc writes, no persistent system
 # changes (criterion #8) — Kerberos config is isolated under $RUNNER_TEMP and
-# pointed at via KRB5_CONFIG; the ccache is a per-uid FILE under $RUNNER_TEMP.
+# pointed at via KRB5_CONFIG; each user uses macOS's native API credential cache
+# so the separately launched gssd can discover its tickets.
 set -uo pipefail
 
 # --- env (REALM/FQDN/WS_USER/SPN/WS_PATH are public via DNS; only WS_PASS is secret) ---
@@ -112,14 +113,14 @@ cap bash -c "echo > /dev/tcp/${FQDN}/2049" && echo "tcp/2049 OK" | tee -a "$LOG"
 # Apple documents an omitted NFSv4 minor as v4.0, so test explicit v4.1 first.
 # Sonoma 14.8.7 rejected vers=4.1 as illegal, but that does not establish what
 # current Tahoe accepts. Keep explicit v4.0 and v3 controls for diagnosis.
-V41K="vers=4.1,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
-V40K="vers=4,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
-V3K="vers=3,sec=krb5p,principal=${WS_USER}@${REALM},sprincipal=${SPN}@${REALM}"
+V41K="vers=4.1,sec=krb5p"
+V40K="vers=4,sec=krb5p"
+V3K="vers=3,sec=krb5p"
 WOPTS=""; WPATH=""   # first winning variant — consumed by Phase B
 
 # --- Phase A: admin mount matrix (criterion #5 interop) ---
 say "PHASE A — admin mount matrix (isolate macOS requirement)"
-CCACHE="FILE:$RUNNER_TEMP/ccache-admin"; export KRB5CCNAME="$CCACHE"
+unset KRB5CCNAME
 PWFILE="$RUNNER_TEMP/pw-admin"; printf '%s' "$WS_PASS" > "$PWFILE"; chmod 600 "$PWFILE"
 cap kinit --password-file="$PWFILE" "${WS_USER}@${REALM}"
 cap klist
@@ -167,20 +168,19 @@ cap dscl . -read /Users/wstest NFSHomeDirectory PrimaryGroupID
 
 if id wstest >/dev/null 2>&1; then
   WSB_KRB5CONF="$RUNNER_TEMP/krb5.conf"
-  WSB_CCACHE="FILE:/tmp/krb5cc_wstest"
   WSB_PWFILE="/tmp/ws_pw_wstest"
   printf '%s' "$WS_PASS" > "$WSB_PWFILE"; chmod 644 "$WSB_PWFILE"
   WSB_MNT="/Users/wstest/RemoteWorkspace"
   sudo -u wstest mkdir -p "$WSB_MNT"
-  cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" \
+  cap sudo -u wstest env -u KRB5CCNAME "KRB5_CONFIG=$WSB_KRB5CONF" \
     kinit --password-file="$WSB_PWFILE" "${WS_USER}@${REALM}"
-  cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" klist
-  cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" \
+  cap sudo -u wstest env -u KRB5CCNAME "KRB5_CONFIG=$WSB_KRB5CONF" klist
+  cap sudo -u wstest env -u KRB5CCNAME "KRB5_CONFIG=$WSB_KRB5CONF" \
     "$KVSC" "${SPN}@${REALM}"
   if [ -z "$WOPTS" ]; then
     say "PHASE B SKIPPED — no admin variant mounted in Phase A (same RPC blocker); criterion #4 untestable until Phase A is resolved"
   else
-    cap sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" "KRB5_CONFIG=$WSB_KRB5CONF" \
+    cap sudo -u wstest env -u KRB5CCNAME "KRB5_CONFIG=$WSB_KRB5CONF" \
       "$TOSC" 60 mount_nfs -o "$WOPTS" "${FQDN}:${WPATH}" "$WSB_MNT"
     if mount | grep -q "RemoteWorkspace"; then
       say "PHASE B RESULT: NON-ADMIN MOUNT SUCCEEDED — criterion #4 PASSES (variant: opts={$WOPTS} path={$WPATH})"
@@ -190,8 +190,8 @@ if id wstest >/dev/null 2>&1; then
       say "PHASE B RESULT: NON-ADMIN MOUNT FAILED — admin worked, non-admin did not (criterion #4 negative; see error above)"
     fi
   fi
-  sudo -u wstest env "KRB5CCNAME=$WSB_CCACHE" kdestroy 2>/dev/null || true
-  sudo rm -f "$WSB_PWFILE" "$WSB_CCACHE"
+  sudo -u wstest env -u KRB5CCNAME kdestroy 2>/dev/null || true
+  sudo rm -f "$WSB_PWFILE"
 else
   say "PHASE B SKIPPED — could not create wstest user (criterion #4 not tested)"
 fi

@@ -86,9 +86,11 @@ boundary) are a Phase-4 per-VM concern and are reconciled there before macOS CI.
   `krb5`/`krb5i` are rejected; cross-tenant access is denied server-side with
   EACCES; principal→UID authorization works without `all_squash`; RPC payloads
   are encrypted (plaintext canary absent from the capture).
-- Does **not** prove: the macOS no-admin path (criterion #4 — macOS CI job),
-  hard-expiry timing (Step 5, separate), or sleep/roaming (criterion #7,
-  device-only).
+- The physical arm64 macOS 26.5.2 test additionally proves a built-in,
+  no-sudo NFSv4.1 `krb5p` mount plus create/read/rename/delete. The tested
+  account is an admin-group member; the corrected CI phase uses a standard
+  account to isolate account class. Hard-expiry timing and sleep/roaming remain
+  separate tests.
 
 ## Physical Mac handoff
 
@@ -118,6 +120,11 @@ automatically select the matching key, rerun once as
 `CREDENTIAL_SSH_IDENTITY=/path/to/key bash ops/physical-mac-test.sh`. The
 operator then removes the forced SSH key, credential, realm, exports, test data,
 and network exposure.
+
+On macOS, leave `KRB5CCNAME` unset so Heimdal uses its native API cache, which
+the separately launched `gssd` can discover. Do not pass `principal=` or
+`sprincipal=` to `mount_nfs`; automatic selection from the native cache is the
+interoperable path verified on the physical device.
 
 ## rpcbind containment
 
