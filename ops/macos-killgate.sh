@@ -11,8 +11,8 @@
 #
 # Negative results are VALID evidence. The script never aborts on a mount
 # failure; it records the error and continues, exiting 0 so the transcript
-# artifact uploads regardless. The only thing it cannot tolerate silently is
-# a missing password (it will still produce a transcript explaining that).
+# artifact uploads regardless. Invalid test setup, such as a missing password,
+# fails the job after recording the reason.
 #
 # Built-in tools only: kinit / kvno / klist / kdestroy / mount_nfs (Heimdal +
 # Apple XNU nfs client). No Homebrew, no /etc writes, no persistent system
@@ -79,7 +79,7 @@ say "version gate passed — macOS ${MACOS_VERSION} satisfies Tahoe major ${EXPE
 
 if [ -z "$WS_PASS" ]; then
   say "FATAL: WS_PASS empty — set the WS_WS1_PASS repo secret (w/ws1 password from cocoroco peer.env). Nothing else will run."
-  exit 0
+  exit 1
 fi
 
 # Isolated krb5.conf (no /etc write; criterion #8).
