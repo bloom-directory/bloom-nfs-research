@@ -20,15 +20,16 @@ experience works, not to force NFS into production.
   `<workspace>.work.sophastra.com`.
 - **Second Linux peer.** `kyle@apps` (SSH) — the stand-in client that proves
   the Linux track and plays the Mac's role until the macOS kill gate runs.
-- **macOS device.** None is owned. The macOS kill gate runs on GitHub-hosted
-  Tahoe runners (`macos-26` Apple Silicon, `macos-26-intel` Intel) instead of a
-  personal device. A physical laptop is needed only for criterion #7 (real
-  sleep and Wi-Fi/hotspot roaming) and remains optional / deferred.
+- **macOS device.** A physical arm64 macOS 26.5.2 device passed the built-in,
+  no-sudo NFSv4.1 `krb5p` mount and filesystem suite. GitHub-hosted Tahoe
+  runners (`macos-26` Apple Silicon, `macos-26-intel` Intel) remain the
+  reproducible standard-account gate; a physical laptop is still required for
+  real sleep and Wi-Fi/hotspot roaming.
 
 ## Current live state
 
-- **cocoroco.** The Tahoe rerun server was cleanly torn down after evidence was
-  captured. Re-run `ops/server-bootstrap.sh` before another test.
+- **cocoroco.** The disposable KDC/NFS reference is active for the corrected
+  macOS reruns and must be torn down when testing completes.
 - **Linux peer.** The original Linux proof remains valid, but `kyle@apps`
   refused SSH connections during the Tahoe rerun and could not be repeated.
 
@@ -249,11 +250,11 @@ cocoroco. A negative on either is recorded evidence, not a silent skip.
 Corrected runner (ordinary user, no sudo):
 
 ```
-# isolate caches so the tester's existing tickets/config are untouched
-export KRB5CCNAME="FILE:$TMPDIR/ws-ccache"
+# macOS gssd discovers tickets through the native API cache
+unset KRB5CCNAME
 [ -n "$WS_KRB5_CONF" ] && export KRB5_CONFIG="$WS_KRB5_CONF"
 trap 'umount "$HOME/RemoteWorkspace" 2>/dev/null; \
-      kdestroy -c "$KRB5CCNAME" 2>/dev/null; \
+      kdestroy 2>/dev/null; \
       rmdir "$HOME/RemoteWorkspace" 2>/dev/null' EXIT
 
 sw_vers; uname -m; which kinit mount_nfs
@@ -263,11 +264,8 @@ kvno nfs/<WORKSPACE-FQDN>@WORK.SOPHASTRA.COM     # pre-fetch the service ticket
 
 mkdir -p "$HOME/RemoteWorkspace"
 
-# resvport is the root-only option; macOS default is an unprivileged source
-# port, so no noresvport is needed. principal=/sprincipal= remove cache/SPN
-# ambiguity.
-mount_nfs -o vers=4.1,sec=krb5p,\
-principal=w/<id>@WORK.SOPHASTRA.COM,sprincipal=nfs/<WORKSPACE-FQDN>@WORK.SOPHASTRA.COM \
+# Let gssd select the cached client and host-based NFS service principals.
+mount_nfs -o vers=4.1,sec=krb5p \
   <WORKSPACE-FQDN>:/ "$HOME/RemoteWorkspace"
 
 # filesystem suite: create, read, write, rename, delete, mkdir, symlink,
@@ -276,20 +274,21 @@ principal=w/<id>@WORK.SOPHASTRA.COM,sprincipal=nfs/<WORKSPACE-FQDN>@WORK.SOPHAST
 
 # evidence (replaces any fs_usage-based check): before/after snapshots
 mount | grep RemoteWorkspace
-klist -c "$KRB5CCNAME"
+klist
 ls -la /etc/krb5.conf ~/Library/LaunchAgents 2>/dev/null
 pgrep -fl mount_nfs
 
 # cleanup runs via the EXIT trap; explicit:
-umount "$HOME/RemoteWorkspace"; kdestroy -c "$KRB5CCNAME"; rmdir "$HOME/RemoteWorkspace"
+umount "$HOME/RemoteWorkspace"; kdestroy; rmdir "$HOME/RemoteWorkspace"
 ```
 
 Apple Heimdal honors `KRB5_CONFIG` for ordinary processes and enables DNS KDC
-lookup by default; the NFS/GSS credential-cache handoff is the real Mac test, so
-the runner isolates the cache and pre-fetches `nfs/<WORKSPACE-FQDN>@WORK.SOPHASTRA.COM`
-before mounting. Apple XNU authorizes non-root mounts on a caller-owned
+lookup by default; the NFS/GSS credential-cache handoff requires macOS's native
+API cache, so the runner pre-fetches `nfs/<WORKSPACE-FQDN>@WORK.SOPHASTRA.COM`
+there before mounting. Apple XNU authorizes non-root mounts on a caller-owned
 mountpoint and records that caller as mount owner (`bsd/vfs/vfs_syscalls.c`);
-hosted Tahoe policy is empirically negative; physical-device policy remains untested.
+physical arm64 Tahoe policy is positive; the corrected hosted standard-account
+rerun remains pending.
 
 Decision after the transcript:
 
@@ -385,7 +384,6 @@ pm#38 is addressed when this repository contains:
 
 ## Immediate next action
 
-Run the same kill-gate on a physical Mac updated to Tahoe 26.6 if a device is
-available; that distinguishes an OS interoperability failure from a
-GitHub-hosted-runner restriction. Otherwise proceed to Step 8 comparators, with
-WebDAV/HTTPS as the leading zero-install candidate.
+Rerun the corrected kill-gate on both hosted Tahoe architectures, then exercise
+hard expiry and physical-device sleep/roaming before proceeding to the Step 8
+comparison and recommendation.

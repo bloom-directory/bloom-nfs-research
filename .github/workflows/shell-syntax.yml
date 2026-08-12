@@ -1,0 +1,14 @@
+name: Shell syntax
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  bash:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check ops scripts
+        run: bash -n ops/*.sh
